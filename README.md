@@ -14,3 +14,7 @@ npm run dev
 # Build for production in the dist/ directory
 npm run build
 ```
+
+# SD 3d shapes
+[Video lesson](https://www.youtube.com/watch?v=AfKGMUDWfuE&ab_channel=TheArtofCode)
+[3d sdf](https://iquilezles.org/www/articles/distfunctions/distfunctions.htm)
