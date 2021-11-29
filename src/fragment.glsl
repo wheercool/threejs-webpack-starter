@@ -2,53 +2,65 @@
 precision mediump float;
 #endif
 
+#define MAX_STEPS 100
+#define SURF_DIST .001
+#define MAX_DIST 100.
+
 uniform vec2 u_resolution;
 uniform float u_time;
 
-vec3 rgb2hsb(in vec3 c){
-    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
-    vec4 p = mix(vec4(c.bg, K.wz),
-    vec4(c.gb, K.xy),
-    step(c.b, c.g));
-    vec4 q = mix(vec4(p.xyw, c.r),
-    vec4(c.r, p.yzx),
-    step(p.x, c.r));
-    float d = q.x - min(q.w, q.y);
-    float e = 1.0e-10;
-    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)),
-    d / (q.x + e),
-    q.x);
+float getDist(vec3 p) {
+    vec4 sphere = vec4(0, 1, 6, 1);
+    float sphereDist = length(sphere.xyz - p) - sphere.w;
+    float planeDist = p.y;
+    float dist = min(sphereDist, planeDist);
+    return dist;
 }
+float rayMarch(vec3 ro, vec3 rd)
+{
 
-//  Function from Iñigo Quiles
-//  https://www.shadertoy.com/view/MsS3Wc
-vec3 hsb2rgb(in vec3 c) {
-    vec3 rgb = clamp(abs(mod(c.x*6.0+vec3(0.0, 4.0, 2.0),
-    6.0)-3.0)-1.0,
-    0.0,
-    1.0);
-    rgb = rgb*rgb*(3.0-2.0*rgb);
-    return c.z * mix(vec3(1.0), rgb, c.y);
+    float d0 = 0.0;
+    for (int i = 0; i < MAX_STEPS; i++) {
+
+        vec3 p = ro + d0*rd;
+        float dS = getDist(p);
+        d0 += dS;
+        if (d0 > MAX_DIST || d0 < SURF_DIST) break;
+    }
+    return d0;
 }
-
-float linear(vec2 domain, vec2 range, float x) {
-    return range.x + ((range.y - range.x) * (x - domain.x) / (domain.y - domain.x));
+vec3 getNormal(vec3 p) {
+    float d = getDist(p);
+    vec2 e = vec2(0.01, 0);
+    vec3 n = d - vec3(
+    getDist(p - e.xyy),
+    getDist(p - e.yxy),
+    getDist(p - e.yyx)
+    );
+    return normalize(n);
 }
-void main() {
-    vec2 st = gl_FragCoord.xy/u_resolution;
-    vec3 color = vec3(0.0);
-    float d = 0.1;
-    float frequence = 0.3;
-    float fn = st.x;
-
-    if (abs(frequence - st.x) <= d) {
-        fn = frequence;
-    } else if (st.x < (frequence - d)) {
-        fn = linear(vec2(0.0, frequence - d), vec2(0.0  , frequence), st.x);
-    } else if (st.x > (frequence + d)) {
-        fn = linear(vec2(frequence + d, 1.0), vec2(frequence, 1.0), st.x);
+float getLight(vec3 p) {
+    vec3 lightPos = vec3(0, 5, 6);
+    lightPos.xz += vec2(sin(u_time), cos(u_time)) * 2.0;
+    vec3 l = normalize(lightPos - p);
+    vec3 n = getNormal(p);
+    float dif = clamp(dot(l, n), 0.0, 1.0);
+    float d = rayMarch(p + n * SURF_DIST * 2.0, l);
+    if (d < length(lightPos - p)) {
+        dif *= 0.1;
     }
 
-    color = hsb2rgb(vec3(fn, 1.0, 1.0));
-    gl_FragColor = vec4(color, 1.0);
+    return dif;
+}
+
+void main() {
+    vec2 uv = (gl_FragCoord.xy - 0.5 * u_resolution.xy) / u_resolution.y;
+    vec3 col = vec3(0.0);
+    vec3 ro = vec3(.0, 1.0, .0);
+    vec3 rd = normalize(vec3(uv.x, uv.y, 1.0));
+    float d = rayMarch(ro, rd);
+    vec3 p = ro + d * rd;
+    float diff = getLight(p);
+    col = vec3(diff);
+    gl_FragColor = vec4(col, 1.0);
 }
