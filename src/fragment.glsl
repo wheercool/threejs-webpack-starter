@@ -31,23 +31,82 @@ float smin(float a, float b, float k) {
     return mix(b, a, h) - k*h*(1.0 - h);
 }
 
+float sdCylinder(vec3 p, vec3 a, vec3 b, float r)
+{
+    vec3  ba = b - a;
+    vec3  pa = p - a;
+    float baba = dot(ba, ba);
+    float paba = dot(pa, ba);
+    float x = length(pa*baba-ba*paba) - r*baba;
+    float y = abs(paba-baba*0.5)-baba*0.5;
+    float x2 = x*x;
+    float y2 = y*y*baba;
+    float d = (max(x, y)<0.0)?-min(x2, y2):(((x>0.0)?x2:0.0)+((y>0.0)?y2:0.0));
+    return sign(d)*sqrt(abs(d))/baba;
+}
+
+float sdCappedCylinder(vec3 p, float h, float r)
+{
+    vec2 d = abs(vec2(length(p.xz), p.y)) - vec2(h, r);
+    return min(max(d.x, d.y), 0.0) + length(max(d, 0.0));
+}
+
+float sdTorus(vec3 p, vec2 t)
+{
+    vec2 q = vec2(length(p.xz)-t.x, p.y);
+    return length(q)-t.y;
+}
+
+float sdMag(vec3 p, float d) {
+    float thickness = d / 10.0;
+    float outerCylinder = sdCylinder(p, vec3(0, 0, 0), vec3(0, 2.0 * d, 0), d);
+    float innerCylinder = sdCylinder(p, vec3(0, thickness, 0), vec3(0, 2.0 * d + thickness, 0), d - thickness);
+
+    vec3 magHandlePos = p - vec3(d, d, 0);
+    magHandlePos.yz *= rot(0.5 * PI);
+
+    float bowl = max(outerCylinder, -innerCylinder);
+    float magHandle = sdTorus(magHandlePos, vec2(0.6 * d, 0.1 * d));
+    magHandle = max(magHandle, -outerCylinder);
+    float dist = smin(bowl, magHandle, 0.01);
+    return dist;
+}
+
+float sdMag2(vec3 p, float d) {
+    float thickness = d / 10.0;
+    float outerCylinder = sdCylinder(p, vec3(0, 0, 0), vec3(0, 2.0 * d, 0), d);
+
+    vec3 magHandlePos = p - vec3(d, d, 0);
+    magHandlePos.yz *= rot(0.5 * PI);
+
+    float bowl = outerCylinder;
+    bowl = abs(bowl) - 0.5 * thickness;
+    float plane = dot(p - 2.0 * d + thickness, normalize(vec3(0, 1, 0)));
+    bowl = max(plane, bowl);
+
+    float fullMagHandle = sdTorus(magHandlePos, vec2(0.6 * d, 0.1 * d));
+    float magHandle = max(fullMagHandle, -outerCylinder);
+    float dist = min(bowl, magHandle);
+    return dist;
+}
+
+float sdMag3(vec3 p, float d) {
+    vec3 position = p;
+    float scale = mix(1.5, 1.0, smoothstep(-1., 1. , position.y));
+    position.xz *= scale;
+    float mag = sdMag2(position, d) / 1.5;
+    return mag;
+}
+
 float getDist(vec3 p) {
-    vec3 box2Pos = p - vec3(-2.5, 1.0, 7);
-    vec3 boxPos = p - vec3(0.5, 1.0, 6);
-    boxPos.xz *= rot(u_time);
-
-    vec3 spherePos = p - vec3((u_mouse.x -0.5) * 20.0, (0.5 - u_mouse.y) * 10.0, 6);//vec3(1.5, 1.5, 6);
-    spherePos *= vec3(2, 1, 1);
-    float box = sdBox(boxPos, vec3(1.0));
-    float box2 = sdBox(box2Pos, vec3(0.8));
-    float sphere = sdSphere(spherePos, 0.8)/2.0;
-    float sphere2 = sdSphere(box2Pos, 0.8);
-
-    float plane = p.y;
-    float dist = plane;
-    float morph = mix(box2, sphere2, 0.5 * sin(u_time) + 0.5);
-    dist = min(dist, morph);
-    dist = min(dist, smin(sphere, box, 0.3));
+    vec3 magPos = p - vec3(0, 1, 6);
+    vec3 mag2Pos = p - vec3(-1.5, 1, 6);
+    mag2Pos.yz *= rot(0.25 * PI);
+    magPos.yz *= rot(sin(0.5 * u_time));
+    magPos.xz *= rot(2.0 * u_time / PI);
+    float mag = sdMag3(magPos, 0.5);
+    float mag2 = sdMag2(mag2Pos, 0.3);
+    float dist = min(mag, mag2);
     return dist;
 }
 float rayMarch(vec3 ro, vec3 rd) {
@@ -72,7 +131,7 @@ vec3 getNormal(vec3 p) {
     return normalize(n);
 }
 float getLight(vec3 p) {
-    vec3 lightPos = vec3(0, 3, 2);
+    vec3 lightPos = vec3(0, 1, 2);
     //    lightPos.xz += vec2(sin(u_time), cos(u_time)) * 2.0;
     vec3 l = normalize(lightPos - p);
     vec3 n = getNormal(p);
