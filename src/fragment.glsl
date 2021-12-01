@@ -92,21 +92,34 @@ float sdMag2(vec3 p, float d) {
 
 float sdMag3(vec3 p, float d) {
     vec3 position = p;
-    float scale = mix(1.5, 1.0, smoothstep(-1., 1. , position.y));
+    float scale = mix(1.5, 1.0, smoothstep(-1., 1., position.y));
     position.xz *= scale;
     float mag = sdMag2(position, d) / 1.5;
     return mag;
 }
 
+float sdTable(vec3 p) {
+    float d = 0.4;
+    float worktopLength = 3.0 * d;
+    float worktopWidth = 2.0 * d;
+    float worktopThickness = 0.02;
+    float worktop = sdBox(p, vec3(worktopLength, worktopThickness, worktopWidth));
+
+    float legThickness = 0.04;
+    float legLength = 1.5 * d;
+    vec3 p1 = p;
+    p1.x = abs(p1.x);
+    p1.z = abs(p.z);
+    vec3 legPos = p1 - vec3(worktopLength- 2.0 * legThickness, -legLength-worktopThickness, worktopWidth - 2.0 * legThickness);
+    float leg = sdBox(legPos, vec3(legThickness + 1.0 * legThickness * smoothstep(0.05, 0.75, legPos.y), legLength, legThickness));
+    return min(worktop, leg);
+}
 float getDist(vec3 p) {
-    vec3 magPos = p - vec3(0, 1, 6);
-    vec3 mag2Pos = p - vec3(-1.5, 1, 6);
-    mag2Pos.yz *= rot(0.25 * PI);
-    magPos.yz *= rot(sin(0.5 * u_time));
-    magPos.xz *= rot(2.0 * u_time / PI);
-    float mag = sdMag3(magPos, 0.5);
-    float mag2 = sdMag2(mag2Pos, 0.3);
-    float dist = min(mag, mag2);
+    vec3 tablePos = p - vec3(0, 1, 6);
+    tablePos.yz *= rot(sin(0.5 * u_time));
+    tablePos.xz *= rot(0.5 * u_time / PI);
+    float mag = sdTable(tablePos);
+    float dist = mag;
     return dist;
 }
 float rayMarch(vec3 ro, vec3 rd) {
