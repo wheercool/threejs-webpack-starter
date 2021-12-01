@@ -114,12 +114,53 @@ float sdTable(vec3 p) {
     float leg = sdBox(legPos, vec3(legThickness + 1.0 * legThickness * smoothstep(0.05, 0.75, legPos.y), legLength, legThickness));
     return min(worktop, leg);
 }
+
+float sdKidsChair(vec3 p) {
+    float seatD = 0.5;
+    float seat = sdBox(p, vec3(seatD, 0.1 * seatD, seatD));
+
+    vec3 legPos = p;
+    legPos.xz = abs(legPos.xz);
+    float legLength = 1.3 * seatD;
+    float legR = mix(0.05, 0.1, smoothstep(0., -legLength, legPos.y));
+    legPos.x -= seatD - 0.05;
+    legPos.z -= seatD - 0.05;
+
+    float leg = sdCylinder(legPos, vec3(0.0, 0., 0.0), vec3(0, -legLength, 0), legR);
+
+    vec3 connectorPos = p;
+    float connectorLength = 0.7 * seatD;
+    float connectorThickness = 0.03;
+    float connectorWidth = seatD / 6.0;
+    connectorPos.z -= seatD - 2.0 * connectorThickness;
+    connectorPos.y -= connectorLength;
+    float connector = sdBox(connectorPos, vec3(seatD / 6.0, connectorLength, connectorThickness));
+
+    vec3 connector2Pos = connectorPos;
+    connector2Pos.x = abs(connector2Pos.x);
+    connector2Pos.x -= 4.0 * connectorWidth;
+    float connector2 = sdBox(connector2Pos, vec3(connectorWidth, connectorLength, connectorThickness));
+
+    float backWidth = 0.6 * seatD;
+    vec3 backPos = p;
+    backPos.y -= 2.0 * connectorLength + backWidth;
+    backPos.z -= seatD - 2.0 * connectorThickness;
+    // backPos - is new coordinate system for back. (0, 0) is center
+    float backLength = mix(0.9 * seatD, 1.1 * seatD, smoothstep(-2.0 * backWidth, backWidth, backPos.y));
+    float back = sdBox(backPos, vec3(backLength, backWidth, connectorThickness));
+    float dist = seat;
+    dist = min(dist, leg);
+    dist = min(dist, connector);
+    dist = min(dist, connector2);
+    dist = min(dist, back);
+    return dist;
+}
 float getDist(vec3 p) {
-    vec3 tablePos = p - vec3(0, 1, 6);
-    tablePos.yz *= rot(sin(0.5 * u_time));
-    tablePos.xz *= rot(0.5 * u_time / PI);
-    float mag = sdTable(tablePos);
-    float dist = mag;
+    vec3 pos = p - vec3(0, 1, 6);
+    pos.yz *= rot(sin(0.5 * u_time));
+    pos.xz *= rot(0.5 * u_time / PI);
+    float chair = sdKidsChair(pos);
+    float dist = chair;
     return dist;
 }
 float rayMarch(vec3 ro, vec3 rd) {
